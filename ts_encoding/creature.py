@@ -2,12 +2,9 @@
 # https://talespire.com/url-scheme
 #
 # Byte order is little-endian
-
 import base64
 import struct
 import uuid
-
-from pprint import pprint
 
 
 class TSCreature:
@@ -33,6 +30,7 @@ class TSCreature:
             "active_emote_ids": [],
         }
         self._version = 0
+        self._encode_version = 2
         self._code = None
         self._binary_data = None
         self._offset = 0
@@ -113,9 +111,9 @@ class TSCreature:
         morph_ids = []
         for _ in range(num_morph_ids):
             if self._version > 1:  # Content pack index os only in v2+ of the schema.
-                content_pack_index = self._unpack_i32()  # Unpack this even though it isn't needed in our data.
-            content_pack_uuid = self._unpack_uuid()
-            morph_ids.append(content_pack_uuid)
+                content_pack_index = self._unpack_i32()
+            morph_id = self._unpack_uuid()
+            morph_ids.append((content_pack_index, morph_id))
 
         # Set the extracted morph_ids
         self.data["morph_ids"] = morph_ids
@@ -300,6 +298,7 @@ class TSCreature:
 
         self._pack_u16(version)
         self._encode_name()
+        self._encode_content_packs()
         self._encode_morph_ids()
         self._pack_u8(self.data["active_morph_index"])
         self._encode_morph_scales()
@@ -309,24 +308,74 @@ class TSCreature:
         self._encode_slot_overrides()
         self._encode_active_emote_ids()
 
-    def encode_url(self):
+    def encode_url(self, match_input_version: bool = True, force_encode_version: int | None = None) -> str:
+        """
+        Encode the data to a TaleSpire Creature Blueprint URL.
+        Args:
+            match_input_version: Blueprint version will match the version set in `data`
+                If set to False it will use the latest blueprint version.
+            force_encode_version: Force the bluprint to be in a specific version (1 or 2).
+
+        Returns:
+            str: The Creature Blueprint URL.
+        """
+        if force_encode_version:
+            self._encode_version = force_encode_version
+        elif match_input_version:
+            self._encode_version = self._version
         self._encode()
         encoded_data = base64.b64encode(bytes(self._binary_data)).decode().replace("/", "_")
         url = f"talespire://creature-blueprint/{encoded_data}"
         return url
 
     def _encode_name(self):
-        name = self.data["name"].encode("utf-8")
-        self._pack_u8(len(name))
-        self._binary_data.extend(name)
+        """
+        Encodes the name and packs it into the binary data.
+        """
+        name = self.data["name"]
+
+        if name is None or name == "":
+            self._pack_u8(255)
+            return
+
+        encoded_name = name.encode("utf-8")
+        self._pack_u8(len(encoded_name))
+        self._binary_data.extend(encoded_name)
+
+    def _encode_content_packs(self):
+        """
+        Encodes and packs the content packs into the binary data.
+        """
+        if self._encode_version < 2:
+            return
+
+        content_pack_uris = self.data["content_packs"]
+        self._pack_i32(len(content_pack_uris))
+
+        for uri in content_pack_uris:
+            encoded_uri = uri.encode("utf-8")
+
+            if len(encoded_uri) > 65535:
+                raise ValueError(f"URI exceeds 65535 bytes: {uri}")
+
+            self._pack_u16(len(encoded_uri))
+            self._binary_data.extend(encoded_uri)
 
     def _encode_morph_ids(self):
+        """
+        Packs the morph ids into the binary data.
+        """
         morph_ids = self.data["morph_ids"]
         self._pack_u8(len(morph_ids))
-        for morph_id in morph_ids:
+        for content_pack_index, morph_id in morph_ids:
+            if self._encode_version > 1:
+                self._pack_i32(content_pack_index)
             self._pack_uuid(morph_id)
 
     def _encode_morph_scales(self):
+        """
+        Packs the morph scales into the binary data.
+        """
         packed_morph_scales = 0
         for i, scale in enumerate(self.data["morph_scales"]):
             scale_bits = int(scale * 4) & 0b111111
@@ -334,14 +383,23 @@ class TSCreature:
         self._binary_data.extend(struct.pack("<Q", packed_morph_scales))
 
     def _encode_reserved(self):
+        """
+        Packs the reserved data into the binary data.
+        """
         reserved = self.data["reserved0"] + self.data["reserved1"]
         self._binary_data.extend(struct.pack("<8H3B", *reserved))
 
     def _encode_stats(self):
+        """
+        Packs the stats value and max values into the binary data.
+        """
         for stat in self.data["stats"]:
             self._pack_stat((stat["value"], stat["max"]))
 
     def _encode_torch_hide_fly(self):
+        """
+        Encodes and packs the Torch, Hide, and Fly states into the binary data.
+        """
         state = (
                 (1 if self.data["torch_enabled"] else 0) |
                 (2 if self.data["explicitly_hidden"] else 0) |
@@ -350,6 +408,9 @@ class TSCreature:
         self._pack_u8(state)
 
     def _encode_slot_overrides(self):
+        """
+        Packs the slot overrides into the binary data.
+        """
         slot_overrides = self.data["slot_overrides"]
         self._pack_u8(len(slot_overrides))
         for slot in slot_overrides:
@@ -357,20 +418,53 @@ class TSCreature:
             self._pack_u16(slot["index"])
 
     def _encode_active_emote_ids(self):
+        """
+        Packs the active emote ids into the binary_data.
+        """
         active_emote_ids = self.data["active_emote_ids"]
         self._pack_u8(len(active_emote_ids))
         for emote_id in active_emote_ids:
             self._pack_uuid(emote_id)
 
-    def _pack_u8(self, data):
-        self._binary_data.extend(struct.pack("<B", data))
+    def _pack_u8(self, value: int):
+        """
+        Packs a u8 - Unsigned Char Integer
 
-    def _pack_u16(self, data):
-        self._binary_data.extend(struct.pack("<H", data))
+        Args:
+            value: The integer value to pack.
+        """
+        self._binary_data.extend(struct.pack("<B", value))
 
-    def _pack_uuid(self, uuid_str):
+    def _pack_u16(self, value: int):
+        """
+        Packs a u16 - Unsigned Short Integer
+        Args:
+            value: The integer value to pack.
+        """
+        self._binary_data.extend(struct.pack("<H", value))
+
+    def _pack_uuid(self, uuid_str: str):
+        """
+        Packs a UUID.
+        Args:
+            uuid_str: The UUID string.
+        """
         self._binary_data.extend(uuid.UUID(uuid_str).bytes)
 
-    def _pack_stat(self, stat_tuple):
+    def _pack_i32(self, value: int):
+        """
+        Packs an i32 - 32-bit integer.
+        Args:
+            value: The integer to pack.
+        """
+        self._binary_data.extend(struct.pack("<i", value))
+
+    def _pack_stat(self, stat_tuple: (float, float)):
+        """
+        Packs a stat, as two 32-bit floats.
+
+        Args:
+            stat_tuple: A tuple containing two floats ( Value, Max Value )
+        """
         value, v_max = stat_tuple
         self._binary_data.extend(struct.pack("<ff", value, v_max))
