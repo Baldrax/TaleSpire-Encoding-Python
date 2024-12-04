@@ -1,5 +1,5 @@
 import pytest
-from ts_encoding.creature import TSCreature
+from ts_encoding.creature_bp import TSCreature
 
 # Blueprint v1 samples are from the 5e Database
 #  https://talestavern.com/talespire-5e-creature-blueprint-database-2/
