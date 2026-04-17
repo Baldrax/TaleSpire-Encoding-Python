@@ -1,18 +1,18 @@
 # Encoding Schemes for TS:
 # https://talespire.com/url-scheme
-#
-# Byte order is little-endian
+
 import base64
 import struct
-import uuid
+
+from ts_encoding.common import TSCodingBase
 
 
-class TSCreature:
+class TSCreature(TSCodingBase):
     """
     A Class to Decode and Encode a TaleSpire Creature Blueprint
     """
 
-    def __init__(self):
+    def _init_data(self):
         self.data = {
             "version": 1,
             "name": "",
@@ -29,11 +29,6 @@ class TSCreature:
             "slot_overrides": [],
             "active_emote_ids": [],
         }
-        self._version = 0
-        self._encode_version = 2
-        self._code = None
-        self._binary_data = None
-        self._offset = 0
 
     def decode_url(self, url: str) -> None:
         """
@@ -49,15 +44,12 @@ class TSCreature:
         self._code = url.split("/")[-1].replace("_", "/")  # The code is stored if needed later.
         self._decode()
 
-    def _decode(self) -> None:
+    def _decode_steps(self) -> None:
         """
         The steps to decode the data.
         Each step is broken down to a single line or method for ease of debugging and updating the schema.
         After this is run the entire blueprint should be decoded and stored in `self.data`.
         """
-        self._binary_data = base64.b64decode(self._code)  # Decode the encoded string into binary data
-        self._offset = 0  # Reset the offset index of the binary data
-
         self._version = self._unpack_u16()  # Unpack the version of the blueprint so we know which schema to use.
         self.data["version"] = self._version
         self._decode_name()
@@ -123,8 +115,7 @@ class TSCreature:
         Decode the Morph Scales, this is the scale of the creature for each morph depicted.
         """
         # Parse the packed-morph-scales (u64)
-        packed_morph_scales, = struct.unpack_from("<Q", self._binary_data, self._offset)  # Little-endian u64
-        self._offset += 8
+        packed_morph_scales = self._unpack_u64()
 
         morph_scales = []
         for n in range(10):  # Up to 10 morphs
@@ -211,69 +202,6 @@ class TSCreature:
 
         # Set the active emote ids
         self.data["active_emote_ids"] = active_emote_ids
-
-    def _unpack_u16(self) -> int:
-        """
-        Unpacks a u16 - Unsigned Short Integer
-
-        Returns:
-            int:
-        """
-        # The class stores the binary data and an offset which represents the current position/index
-        #  we are at in the binary data.
-        # Each unpack method then increments the offset by the proper amount so we can decode the next
-        #  step without having to feed in the offset index.
-        result, = struct.unpack_from("<H", self._binary_data, self._offset)
-        self._offset += 2
-        return result
-
-    def _unpack_u8(self) -> int:
-        """
-        Unpacks a u8 - Unsigned Char Integer
-
-        Returns:
-            int:
-        """
-        result, = struct.unpack_from("<B", self._binary_data, self._offset)
-        self._offset += 1
-        return result
-
-    def _unpack_utf8(self, num_chars: int) -> str:
-        """
-        Unpacks a utf8 string of characters from the binary data.
-        The number of characters must be provided.
-
-        Args:
-            num_chars: The number of characters to unpack.
-
-        Returns:
-            str: The extracted string.
-        """
-        result, = struct.unpack_from(f"<{num_chars}s", self._binary_data, self._offset)
-        self._offset += num_chars
-        return result
-
-    def _unpack_i32(self) -> int:
-        """
-        Unpacks an i32 - 32-bit signed integer
-
-        Returns:
-            int:
-        """
-        result, = struct.unpack_from("<i", self._binary_data, self._offset)
-        self._offset += 4
-        return result
-
-    def _unpack_uuid(self) -> str:
-        """
-        Unpacks the uuid string.
-
-        Returns:
-            str:
-        """
-        result, = struct.unpack_from(f"<16s", self._binary_data, self._offset)
-        self._offset += 16
-        return str(uuid.UUID(bytes=result))
 
     def _unpack_stat(self) -> (float, float):
         """
@@ -425,39 +353,6 @@ class TSCreature:
         self._pack_u8(len(active_emote_ids))
         for emote_id in active_emote_ids:
             self._pack_uuid(emote_id)
-
-    def _pack_u8(self, value: int):
-        """
-        Packs a u8 - Unsigned Char Integer
-
-        Args:
-            value: The integer value to pack.
-        """
-        self._binary_data.extend(struct.pack("<B", value))
-
-    def _pack_u16(self, value: int):
-        """
-        Packs a u16 - Unsigned Short Integer
-        Args:
-            value: The integer value to pack.
-        """
-        self._binary_data.extend(struct.pack("<H", value))
-
-    def _pack_uuid(self, uuid_str: str):
-        """
-        Packs a UUID.
-        Args:
-            uuid_str: The UUID string.
-        """
-        self._binary_data.extend(uuid.UUID(uuid_str).bytes)
-
-    def _pack_i32(self, value: int):
-        """
-        Packs an i32 - 32-bit integer.
-        Args:
-            value: The integer to pack.
-        """
-        self._binary_data.extend(struct.pack("<i", value))
 
     def _pack_stat(self, stat_tuple: (float, float)):
         """
