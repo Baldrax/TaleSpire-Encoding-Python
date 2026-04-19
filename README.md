@@ -7,7 +7,15 @@ It currently contains two encoding types:
 - Slabs (v1, v2)
 - Creature Blueprints (v1, v2)
 
-Slabs Example usage:
+## Installation:
+With pip you can install specific releases.
+```
+pip install git+https://github.com/Baldrax/TaleSpire-Encoding-Python.git@vX.X.X
+```
+Replace the version with the version you want to install:
+- [Latest Releases](https://github.com/Baldrax/TaleSpire-Encoding-Python/releases)
+
+## Slabs Example usage:
 ```python
 from ts_encoding.slab import TSSlab
 
@@ -96,7 +104,7 @@ new_slab_code = new_slab.encode_slab()
 # You can paste that new_slab_code into TaleSpire to see your grass tile
 ```
 
-Creature Blueprint Example usage:
+## Creature Blueprint Example usage:
 ```python
 from ts_encoding.creature_bp import TSCreature
 from pprint import pprint
