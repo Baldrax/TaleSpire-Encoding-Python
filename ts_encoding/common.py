@@ -10,6 +10,11 @@ import uuid
 class TSCodingBase:
     """
     A Base Class to Decode and Encode a TaleSpire content.
+
+    For Decoding:
+    The class stores the binary data and an offset which represents the current position/index we are at in the
+    binary data. Each unpack method then increments the offset by the proper amount so we can decode the next
+    step without having to feed in the offset index.
     """
 
     def __init__(self):
@@ -21,174 +26,164 @@ class TSCodingBase:
         self._binary_data = None
         self._offset = 0
 
-    def _init_data(self):
+    def _init_data(self) -> None:
+        """
+        This is intended to be overridden by the subclass.
+        The data dictionary should be initialized to a default state declaring all the data needed.
+        """
         self.data = {
             "version": 1,
         }
 
     def _decode(self) -> None:
         """
-        The steps to decode the data.
-        Each step is broken down to a single line or method for ease of debugging and updating the schema.
-        After this is run the entire blueprint should be decoded and stored in `self.data`.
+        Preps self._code into self._binary_data then runs self._decode_steps()
+        It is up to the subclass to set self._code
         """
         self._binary_data = base64.b64decode(self._code)  # Decode the encoded string into binary data
         self._offset = 0  # Reset the offset index of the binary data
         self._decode_steps()
 
-    def _decode_steps(self):
+    def _decode_steps(self) -> None:
+        """
+        This is meant to be overridden by the subclass.
+        Keep these steps as simple as possible, 1 or 2 lines or break them out into another method.
+        When the steps are complete all the binary data should be unpacked into `self.data`
+        """
         pass
 
     def _encode(self) -> None:
         """
-        The steps to encode the data.
-        Each step is broken down to a single line or method for ease of debugging and updating the schema.
-        After this is run the entire blueprint should be encoded and stored in `self.binary_data`.
+        Resets self._binary_data, runs self._encode_steps and encodes the new binary data to self._code
+        It is up to the subclass to reveal self._code to the user or application.
         """
         self._binary_data = bytearray()
         self._encode_steps()
         self._code = base64.b64encode(self._binary_data)
 
-    def _encode_steps(self):
+    def _encode_steps(self) -> None:
+        """
+        This is meant to be overridden by the subclass.
+        Keep these steps as simple as possible, 1 or 2 lines or break them out into another method.
+        When the steps are complete everything in `self.data` should be packed into `self._binary_data`
+        """
         pass
 
     def _unpack_u8(self) -> int:
-        """
-        Unpacks a u8 - Unsigned Char Integer
-
-        Returns:
-            int:
-        """
+        """Unpacks a u8 - Unsigned 8-bit integer (1 byte)"""
         result, = struct.unpack_from("<B", self._binary_data, self._offset)
         self._offset += 1
         return result
 
     def _unpack_u16(self) -> int:
-        """
-        Unpacks a u16 - Unsigned Short Integer
-
-        Returns:
-            int:
-        """
-        # The class stores the binary data and an offset which represents the current position/index
-        #  we are at in the binary data.
-        # Each unpack method then increments the offset by the proper amount so we can decode the next
-        #  step without having to feed in the offset index.
+        """Unpacks a u16 - Unsigned Short Integer (2 bytes)"""
         result, = struct.unpack_from("<H", self._binary_data, self._offset)
         self._offset += 2
         return result
 
     def _unpack_u32(self) -> int:
-        """
-        Unpacks a u32 - Unsigned Long Integer
-
-        Returns:
-            int:
-        """
+        """Unpacks a u32 - Unsigned 32-bit Integer (4 bytes)"""
         result, = struct.unpack_from("<I", self._binary_data, self._offset)
         self._offset += 4
         return result
 
     def _unpack_u64(self) -> int:
+        """Unpacks a u64 - Unsigned 64-bit integer (8 bytes)"""
         result, = struct.unpack_from("<Q", self._binary_data, self._offset)
         self._offset += 8
         return result
 
-    def _unpack_utf8(self, num_chars: int) -> str:
+    def _unpack_utf8(self, num_bytes: int) -> str:
         """
-        Unpacks a utf8 string of characters from the binary data.
-        The number of characters must be provided.
+        Unpacks a UTF-8 string of fixed length.
 
         Args:
-            num_chars: The number of characters to unpack.
+            num_bytes (int): Number of bytes to read from the stream.
 
         Returns:
-            str: The extracted string.
+            str: Decoded UTF-8 string
         """
-        result, = struct.unpack_from(f"<{num_chars}s", self._binary_data, self._offset)
-        self._offset += num_chars
+        result, = struct.unpack_from(f"<{num_bytes}s", self._binary_data, self._offset)
+        self._offset += num_bytes
         return result
 
     def _unpack_i32(self) -> int:
-        """
-        Unpacks an i32 - 32-bit signed integer
-
-        Returns:
-            int:
-        """
+        """Unpacks an i32 - Signed 32-bit integer (4 bytes)"""
         result, = struct.unpack_from("<i", self._binary_data, self._offset)
         self._offset += 4
         return result
 
     def _unpack_uuid(self) -> str:
-        """Unpacks the UUID string.
-
-        Returns:
-            str:
-        """
-        result, = struct.unpack_from(f"<16s", self._binary_data, self._offset)
+        """Unpacks a UUID - 128-bit identifier (16 bytes)"""
+        result, = struct.unpack_from(f"16s", self._binary_data, self._offset)
         self._offset += 16
         return str(uuid.UUID(bytes=result))
 
     def _unpack_slab_uuid(self) -> str:
-        """Unpacks the UUID from a Slab
-
-        Returns:
-            str:
-        """
-        uuid_data = struct.unpack_from("<IHH8B", self._binary_data, self._offset)
+        """Unpacks a slab UUID - 128-bit identifier (16 bytes, mixed-endian layout)"""
+        fields = struct.unpack_from("<IHH8B", self._binary_data, self._offset)
         self._offset += 16
         asset_uuid = uuid.UUID(
             fields=(
-                uuid_data[0], uuid_data[1], uuid_data[2], uuid_data[3], uuid_data[4],
-                int.from_bytes(uuid_data[5:], byteorder="big")
+                fields[0],
+                fields[1],
+                fields[2],
+                fields[3],
+                fields[4],
+                int.from_bytes(fields[5:], byteorder="big")
             )
         )
         return str(asset_uuid)
 
-    def _pack_u8(self, value: int):
+    def _pack_u8(self, value: int) -> None:
         """
-        Packs a u8 - Unsigned Char Integer
+        Packs a u8 - Unsigned 8-bit integer (1 byte)
 
         Args:
             value: The integer value to pack.
         """
         self._binary_data.extend(struct.pack("<B", value))
 
-    def _pack_u16(self, value: int):
+    def _pack_u16(self, value: int) -> None:
         """
-        Packs a u16 - Unsigned Short Integer
+        Packs a u16 - Unsigned 16-bit integer (2 bytes)
+
         Args:
             value: The integer value to pack.
         """
         self._binary_data.extend(struct.pack("<H", value))
 
-    def _pack_u32(self, value: int):
+    def _pack_u32(self, value: int) -> None:
         """
-        Packs a u32 - Unsigned Long Integer
+        Packs a u32 - Unsigned 32-bit integer (4 bytes)
+
         Args:
             value: The integer value to pack.
         """
         self._binary_data.extend(struct.pack("<I", value))
 
-    def _pack_u64(self, value: int):
+    def _pack_u64(self, value: int) -> None:
         """
-        Packs a u64 - Unsigned Long Integer
+        Packs a u64 - Unsigned 64-bit Integer (8 bytes)
+
         Args:
             value: The integer value to pack.
         """
         self._binary_data.extend(struct.pack("<Q", value))
 
-    def _pack_uuid(self, uuid_str: str):
+    def _pack_uuid(self, uuid_str: str) -> None:
         """
-        Packs a UUID.
+        Packs a UUID - 128-bit identifier (16 bytes)
+
         Args:
             uuid_str: The UUID string.
         """
         self._binary_data.extend(uuid.UUID(uuid_str).bytes)
 
     def _pack_slab_uuid(self, uuid_str: str):
-        """Packs a Slab UUID
+        """
+        Packs a Slab UUID - 128-bit identifier (16 bytes, mixed-endian layout)
+
         Args:
             uuid_str: The UUID String.
         """
@@ -203,7 +198,8 @@ class TSCodingBase:
 
     def _pack_i32(self, value: int):
         """
-        Packs an i32 - 32-bit integer.
+        Packs an i32 - Signed 32-bit integer (4 bytes)
+
         Args:
             value: The integer to pack.
         """
