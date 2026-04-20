@@ -1,7 +1,11 @@
-# Encoding Schemes for TS:
-# https://talespire.com/url-scheme
-#
-# Byte order is little-endian
+"""
+Base TS Encoding classes and functions for use in the specific encoders.
+
+URL Schemes are documented here:
+https://talespire.com/url-scheme
+
+Standard Byte order is little-endian
+"""
 import base64
 import struct
 import uuid
