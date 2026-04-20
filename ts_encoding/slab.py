@@ -6,6 +6,7 @@ import gzip
 import struct
 
 from ts_encoding.common import TSCodingBase
+from ts_encoding.exceptions import *
 
 
 class TSSlab(TSCodingBase):
@@ -103,10 +104,12 @@ class TSSlab(TSCodingBase):
                 }
                 asset["instances"].append(instance_data)
 
-    def encode_slab(self, force_version: int | None = None):
+    def encode_slab(self, force_version: int | None = None, ignore_limit: bool = False):
         if force_version:
             self._force_version = force_version
         self._encode()
+        if len(self._binary_data) > 30720 and not ignore_limit:
+            raise SlabExceedsSizeLimit("Slab exceeds TaleSpire size limit of 30kB (30720 bytes) binary data!")
         return self._code.decode("ascii")
 
     def _encode_steps(self) -> None:
