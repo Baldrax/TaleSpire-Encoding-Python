@@ -251,8 +251,8 @@ class TSSlab(TSCodingBase):
                 packed = (
                     (unused << 59) |
                     (rot << 54) |
-                    (pos_x << 36) |
+                    (pos_z << 36) |
                     (pos_y << 18) |
-                    pos_z
+                    pos_x
                 )
                 self._pack_u64(packed)
