@@ -142,9 +142,9 @@ class TSSlab(TSCodingBase):
                 packed_transform = self._unpack_u64()
                 unused = (packed_transform >> 59) & 0b11111
                 rot = (packed_transform >> 54) & 0b11111
-                pos_x = (packed_transform >> 36) & 0x3FFFF
+                pos_z = (packed_transform >> 36) & 0x3FFFF
                 pos_y = (packed_transform >> 18) & 0x3FFFF
-                pos_z = packed_transform & 0x3FFFF
+                pos_x = packed_transform & 0x3FFFF
                 instance_data = {
                     "degrees": rot * 15.0,
                     "pos_x": pos_x / 100.0,
