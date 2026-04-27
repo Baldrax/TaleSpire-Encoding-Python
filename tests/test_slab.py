@@ -41,12 +41,7 @@ TEST_CASES = [
 
 def assert_data(data: dict, assert_dict: dict):
     for key, value in assert_dict.items():
-        if key == "stats":
-            for stat_index, stat_values in value.items():
-                data_stat = data["stats"][stat_index]
-                assert (data_stat["value"], data_stat["max"]) == stat_values
-        else:
-            assert data[key] == value
+        assert data[key] == value
 
 
 @pytest.mark.parametrize("input_data", TEST_CASES)
