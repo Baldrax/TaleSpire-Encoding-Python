@@ -122,6 +122,10 @@ class TSAssetLib:
         asset = self.asset_uuid_dict.get(asset_uuid, None)
         return asset
 
+    def assets(self) -> list[TSAsset]:
+        """Returns a list of all the assets in the library."""
+        return list(self.asset_uuid_dict.values())
+
 
 class TSAsset:
 
@@ -130,7 +134,7 @@ class TSAsset:
         self.asset_type = asset_type
         self.id = asset_dict["Id"].lower()
         self.name = asset_dict["Name"]
-        self.deprecated = asset_dict["IsDeprecated"]
+        self.deprecated = asset_dict["IsDeprecated"] == 1
 
 
 class TSIconAsset(TSAsset):
